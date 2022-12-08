@@ -121,6 +121,7 @@ public:
     void SetAddr( int VALUE ) { iAddr = VALUE; };
     int  GetSize( void ) { return tData.size(); } ;
     void Append( char* BUFFER, int LENGTH );
+    void Clear( void) { tData.clear(); }
     bool SendChunk( int PORT, int TRIES, int SLEEP_TIME );
     bool SendSpecialChunk( int PORT, int TRIES, int SLEEP_TIME, int FLASH );
     void FakeReset( void );
@@ -261,8 +262,7 @@ int LoadHEX( const char* FILENAME, vector<TChunk>& CHUNKS )
 
          if ( iLineLength >= 0 )
          {
-            // Check if it is continous
-            
+            // Check if it is continuous
             if (  (I >= 0 ) && ( CHUNKS[I].GetAddr( ) + CHUNKS[I].GetSize( ) == iLineAddr ) )
             {
                // Continous
@@ -272,7 +272,7 @@ int LoadHEX( const char* FILENAME, vector<TChunk>& CHUNKS )
             else
             {
                // Non continous, a new one
-//               cout << "LoadHEX: non-continuous address: " << hex << iLineAddr << dec << endl;
+               //cout << "LoadHEX: non-continuous address: 0x" << hex << iLineAddr << dec << endl;
                
                I++;
                            
@@ -280,6 +280,7 @@ int LoadHEX( const char* FILENAME, vector<TChunk>& CHUNKS )
                tChunk.Append( Buffer, iLineLength );
                
                CHUNKS.push_back( tChunk );
+               tChunk.Clear();
             }
          }
          else
@@ -323,7 +324,10 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
    {
       cout << "Failed to load hex file" << endl;
       return -1;
-   } else cout << "Hex file OK" << endl;
+   } else {
+      cout << "Hex file OK" << endl;
+      cout << tChunks.size() << " chunks detected" << endl;
+   }
 
    // Check the communications with the bootloader and retrieve the target PIC.
    cout << endl << "Please (re)boot the microcontroller now!!" << endl;
@@ -355,7 +359,7 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
       int chunk_size = tChunk.GetAddr( ) * 2 + tChunk.GetSize( );
       if ( chunk_size > iFlash ) continue;
       if (chunk_size > hex_size) hex_size = chunk_size;
-      cout << "HEX file: " << hex_size << " bytes" << endl;
+      cout << "chunk: " << "address: 0x" << hex << tChunk.GetAddr( ) << " " << dec << hex_size << " bytes" << endl;
    }
    cout << "PIC available data size: " << iFlash - 256 << " bytes" << endl;
    if (hex_size > iFlash - 256) {
@@ -375,7 +379,7 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
       if ( tChunk.GetAddr( ) < 8 )
       {
          // Intercept the boot reset vector and fake it
-         
+
          tChunk.FakeReset( );
       }
 
@@ -470,8 +474,8 @@ int ProcessHexLine ( const char* IN, unsigned int& ADDR, char* OUT )
    ADDR = addr_hi + addr_lo;
 
 #ifdef __DEBUG__
-   cout << "ProcessHexLine: address: " << hex << ADDR << dec << endl;
-   cout << "ProcessHexLine: length: " << iLength << endl;
+   //cout << "ProcessHexLine: address: " << hex << ADDR << dec << endl;
+   //cout << "ProcessHexLine: length: " << iLength << endl;
 #endif
 
    if (IN[ _TYPE_ ] == '4') return 0; // Don't process this record type
