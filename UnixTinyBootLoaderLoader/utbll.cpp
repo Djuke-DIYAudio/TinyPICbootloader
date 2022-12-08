@@ -327,6 +327,11 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
    } else {
       cout << "Hex file OK" << endl;
       cout << tChunks.size() << " chunks detected" << endl;
+       for( vector<TChunk>::const_iterator tIter = tChunks.begin(); tIter != tChunks.end(); tIter++ )
+       {
+          tChunk = *tIter;
+          cout << "- chunk @ 0x" << hex << tChunk.GetAddr( ) << " -> " << dec << tChunk.GetSize( ) << " bytes" << endl;
+       }
    }
 
    // Check the communications with the bootloader and retrieve the target PIC.
@@ -356,12 +361,12 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
    for( vector<TChunk>::const_iterator tIter = tChunks.begin(); tIter != tChunks.end(); tIter++ )
    {
       tChunk = *tIter;
-      int chunk_size = tChunk.GetAddr( ) * 2 + tChunk.GetSize( );
+      int chunk_size = tChunk.GetAddr( ) + tChunk.GetSize( );
       if ( chunk_size > iFlash ) continue;
       if (chunk_size > hex_size) hex_size = chunk_size;
-      cout << "chunk: " << "address: 0x" << hex << tChunk.GetAddr( ) << " " << dec << hex_size << " bytes" << endl;
    }
-   cout << "PIC available data size: " << iFlash - 256 << " bytes" << endl;
+   cout << "Max PIC address: 0x" << hex << iFlash - 200 << dec << endl;
+   cout << "Max HEX address: 0x" << hex << hex_size << dec << endl;
    if (hex_size > iFlash - 256) {
       cout << "Hex file does not fit in microcontroller" << endl;
       return -1;
@@ -383,12 +388,12 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
          tChunk.FakeReset( );
       }
 
-      if ( tChunk.GetAddr( ) * 2 + tChunk.GetSize( ) > iFlash )
+      if ( tChunk.GetAddr( ) + tChunk.GetSize( ) > iFlash )
       {
          continue; // Not send illegal chunks   
       }
 
-      if ( tChunk.GetAddr( ) * 2 + tChunk.GetSize( ) > iFlash - 256)
+      if ( tChunk.GetAddr( ) + tChunk.GetSize( ) > iFlash - 200)
       {
          cout << "HEX file too large, bootloader overwriting prevented. Firmware will not work properly!" << endl;
          return -1;
