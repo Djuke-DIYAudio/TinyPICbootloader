@@ -330,7 +330,7 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
        for( vector<TChunk>::const_iterator tIter = tChunks.begin(); tIter != tChunks.end(); tIter++ )
        {
           tChunk = *tIter;
-          cout << "- chunk @ 0x" << hex << tChunk.GetAddr( ) << " -> " << dec << tChunk.GetSize( ) << " bytes" << endl;
+          cout << "- chunk @ 0x" << setfill('0') << setw(4) << hex << tChunk.GetAddr( ) << " -> " << dec << tChunk.GetSize( ) << " bytes" << endl;
        }
    }
 
@@ -365,8 +365,13 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
       if ( chunk_size > iFlash ) continue;
       if (chunk_size > hex_size) hex_size = chunk_size;
    }
-   cout << "Max PIC address: 0x" << hex << iFlash - 200 << dec << endl;
-   cout << "Max HEX address: 0x" << hex << hex_size << dec << endl;
+   
+   cout << showbase // show the 0x prefix
+        << internal // fill between the prefix and the number
+        << setfill('0') // fill with 0s
+        << setw(4);
+   cout << "Max PIC address: " << hex << iFlash - 200 << dec << endl;
+   cout << "Max HEX address: " << hex << hex_size << dec << endl;
    if (hex_size > iFlash - 256) {
       cout << "Hex file does not fit in microcontroller" << endl;
       return -1;
@@ -384,7 +389,7 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
       if ( tChunk.GetAddr( ) < 8 )
       {
          // Intercept the boot reset vector and fake it
-
+         cout << "Store and replace the original boot reset vector" << endl;
          tChunk.FakeReset( );
       }
 
@@ -406,7 +411,7 @@ int SendHex( int PORT, int PIC, const char* FILENAME, int TRIES, int SLEEP_TIME 
     }
 
    // Now patch the boot loader
-   cout << endl << "Patch the bootloader to start the program" << endl;
+   cout << "Patch the bootloader to start the program" << endl;
    if (!tChunk.SendSpecialChunk( PORT, TRIES, SLEEP_TIME, iFlash )) return -1;
    else return 1;
    
@@ -519,7 +524,7 @@ int my_write( int FLD, char* BUFFER, int N )
 int SendLine( int PORT, char* BUFFER, int ADDR, int LENGTH, int TRIES, int SLEEP_TIME )
 { 
    // Send the data following the Tiny BootLoader Protocol
-//   cout << endl << "SendLine() address: " << hex << ADDR << dec << " length: " << LENGTH << endl;
+   //cout << endl << "SendLine() address: " << hex << ADDR << dec << " length: " << LENGTH << endl;
    
    // First the address
    
@@ -537,7 +542,7 @@ int SendLine( int PORT, char* BUFFER, int ADDR, int LENGTH, int TRIES, int SLEEP
    }
    
    LENGTH = 64;
-
+   
    //Dummy = (ADDR >> 16) & 0xFF;
    Dummy = 0;
    I = my_write( PORT, &Dummy, 1 );
@@ -621,7 +626,7 @@ int SendLine( int PORT, char* BUFFER, int ADDR, int LENGTH, int TRIES, int SLEEP
       {
          cout << '\r';
          cout.flush();
-         cout << "[" << hex << setw(3) << ADDR << " - " << ADDR + LENGTH - 1 << "] OK";
+         cout << "[" << hex << setw(4) << ADDR << " - " << ADDR + LENGTH - 1 << "] OK";
          
          return LENGTH;
       }
@@ -646,7 +651,7 @@ int SendLine( int PORT, char* BUFFER, int ADDR, int LENGTH, int TRIES, int SLEEP
 #else
    return LENGTH;
 #endif   
-//   printf("\n");
+   cout << endl;
    
    return -1;
 
@@ -1035,30 +1040,50 @@ void TChunk::Append( char* BUFFER, int LENGTH )
     
 bool TChunk::SendChunk( int PORT, int TRIES, int SLEEP_TIME )
 {
-   
    // Send each chunk in blocks of 64 bytes
-//   cout << "Send Chunk: " << hex << GetAddr() << dec << " size: " << GetSize() << endl;
+   // Make sure the start address is also at a multiple of 64 bytes
+   cout << "Send Chunk " << hex << GetAddr() << "-" << GetAddr() + GetSize() << dec << endl;
 
    int I;
    int iSize = tData.size();
    
+   // Detect if start address is at 64 byte multiple
+   int iOffset = GetAddr() % 64;
+   int iAddrNew = GetAddr() - iOffset;
+   if (iOffset != 0)
+   {
+      //cout << "Adjusting start address " << hex << GetAddr() << " to " << iAddrNew << dec << endl;
+      char Buf[64];
+      for ( I = 0; I < 64; I ++)
+      {
+         if (I < iOffset) Buf[ I ] = 0xFF;
+         else Buf[ I ] = tData[ I - iOffset ];
+      }
+         
+      if ( SendLine( PORT, Buf, iAddrNew, 64, TRIES, SLEEP_TIME ) == -1 )
+      {
+         return false;
+      }
+   }
    for( I = 0; I < iSize; I += 64 )
    {
-      if ( iSize - I >= 64 )
+      if ( I < iOffset ) continue;
+      if ( iSize - I + iOffset >= 64 )
       {
-         if ( SendLine( PORT, &tData[ I ], iAddr + I, 64, TRIES, SLEEP_TIME ) == -1 )
+         if ( SendLine( PORT, &tData[ I - iOffset ], iAddr + I - iOffset, 64, TRIES, SLEEP_TIME ) == -1 )
          {
             return false;
          }
       }
       else
       {
-         if ( SendLine( PORT, &tData[ I ], iAddr + I, iSize - I, TRIES, SLEEP_TIME ) == -1 )
+         if ( SendLine( PORT, &tData[ I - iOffset ], iAddr + I - iOffset, iSize - I + iOffset, TRIES, SLEEP_TIME ) == -1 )
          {
             return false;
          }
       }
    }
+   cout << endl;
    return true;
 }
     
@@ -1106,14 +1131,13 @@ void TChunk::FakeReset( void )
     
    // Patched code to call the bootloader for PIC18F
    tDummy[ 1 ] = 0xEF;
-//   tDummy[ 0 ] = 0x96; // 0xEF96 --> goto 0xFF2C, where the loader starts
    tDummy[ 0 ] = 0xA0; // 0xEFA0 --> goto 0xFF38, where the loader starts
    tDummy[ 3 ] = 0xF0; 
-   tDummy[ 2 ] = 0x7F; // 0xF07F --> same as original code   
+   tDummy[ 2 ] = 0x7F; // 0xF07F --> same as original code
    tDummy[ 5 ] = 0x00; 
-   tDummy[ 4 ] = 0x00; // 0x0000 --> nop   
+   tDummy[ 4 ] = 0xFF; // 0xFF00 --> same as original code
    tDummy[ 7 ] = 0x00; 
-   tDummy[ 6 ] = 0x00; // 0x0000 --> nop   
+   tDummy[ 6 ] = 0xFF; // 0xFF00 --> same as original code
   
 
    // The first four instructions must call the loader, later the loader will call the original reset vector
@@ -1142,12 +1166,11 @@ bool TChunk::SendSpecialChunk( int PORT, int TRIES, int SLEEP_TIME, int FLASH )
 {
    tData.clear();
    iAddr = FLASH -  200;
-   
+     
+   // Then place the reset vector in the next 8 bytes
    for ( int I = 0; I < 8; I++ )
    {
-   
       tData.push_back( acOriginalReset[ I ] );
-   
    }
    
    return SendChunk( PORT, TRIES, SLEEP_TIME );
