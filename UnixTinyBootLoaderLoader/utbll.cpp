@@ -237,7 +237,7 @@ int LoadHEX( const char* FILENAME, vector<TChunk>& CHUNKS )
    
    TChunk   tChunk;
    
-   unsigned int iLineAddr;
+   unsigned int iLineAddr = 0;
    int iLineLength;
    int I = -1;
    
