@@ -150,7 +150,7 @@ int main( int argc, char* argv[] )
       // Parse the command line
       
       // Command Line object.
-      CmdLine tCmdLine( "Unix Tiny BootLoader Loader", ' ', "0.1" );
+      CmdLine tCmdLine( "Unix Tiny BootLoader Loader", ' ', "1.1" );
       
       // The arguments
       
